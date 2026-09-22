@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex, nofollow">
+<title>LuF-Rechnung teilen</title>
+<!-- Teilen-Seite von LuF-Rechnung (22.09.2026). Liegt AUSSERHALB von Google (z. B. GitHub Pages),
+     weil Googles Rahmen um die App das Teilen-Fenster von iOS nicht zulaesst. Die Seite holt die
+     PDF mit einem Einmal-Code (5 Minuten, ein Beleg) vom Apps Script und gibt sie als DATEI ans
+     Teilen-Fenster. Sie speichert nichts, laedt nichts von fremden Servern und kennt keine Daten,
+     solange niemand mit einem gueltigen Code kommt. Code und Server-Adresse stehen hinter dem #. -->
+<style>
+  :root{ --bg:#f4f5f7; --surface:#ffffff; --text:#1f2329; --muted:#6b7280; --border:#d9dde2; --accent:#2563eb; --rot:#b3261e }
+  @media (prefers-color-scheme: dark){ :root{ --bg:#1b1d21; --surface:#25282d; --text:#eef0f3; --muted:#9aa1ab; --border:#3a3e45; --accent:#5b8def; --rot:#f28b82 } }
+  html,body{ margin:0; min-height:100%; background:var(--bg); color:var(--text);
+    font:16px/1.45 -apple-system,"SF Pro Text","Segoe UI",system-ui,sans-serif; -webkit-text-size-adjust:100% }
+  main{ max-width:440px; margin:0 auto; padding:calc(env(safe-area-inset-top) + 48px) 16px 32px; display:flex; flex-direction:column; gap:16px }
+  .karte{ background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:20px; display:flex; flex-direction:column; gap:14px; align-items:center; text-align:center }
+  .symbol{ width:64px; height:64px; border-radius:16px; background:rgba(37,99,235,.1); color:var(--accent); display:flex; align-items:center; justify-content:center }
+  h1{ margin:0; font-size:20px; font-weight:700; word-break:break-word }
+  p{ margin:0; color:var(--muted) }
+  button,a.knopf{ display:flex; align-items:center; justify-content:center; gap:8px; width:100%; min-height:52px; box-sizing:border-box;
+    border-radius:12px; font:inherit; font-size:17px; font-weight:600; cursor:pointer; text-decoration:none }
+  button{ background:var(--accent); color:#fff; border:0 }
+  button:disabled{ opacity:.5; cursor:default }
+  a.knopf{ background:var(--surface); color:var(--text); border:1px solid var(--border) }
+  .fehler{ color:var(--rot) }
+  .ring{ width:28px; height:28px; border-radius:50%; border:3px solid var(--border); border-top-color:var(--accent); animation:dreh 1s linear infinite }
+  @keyframes dreh{ to{ transform:rotate(360deg) } }
+  [hidden]{ display:none !important }
+</style>
+</head>
+<body>
+<main>
+  <div class="karte">
+    <div class="symbol" aria-hidden="true">
+      <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/><path d="M9 14h6M9 17h4"/></svg>
+    </div>
+    <h1 id="titel">PDF wird geholt</h1>
+    <p id="text">Einen Moment.</p>
+    <div class="ring" id="ring" aria-hidden="true"></div>
+    <button type="button" id="teilen" hidden>
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="M8 7l4-4 4 4"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg>
+      PDF teilen
+    </button>
+    <a class="knopf" id="oeffnen" hidden target="_blank" rel="noopener">PDF öffnen oder sichern</a>
+  </div>
+</main>
+<script>
+(function () {
+  "use strict";
+  var $ = function (id) { return document.getElementById(id); };
+  var datei = null;
+
+  function zeige(titel, text, fehler) {
+    $("titel").textContent = titel;
+    $("text").textContent = text;
+    $("text").className = fehler ? "fehler" : "";
+    $("ring").hidden = true;
+  }
+
+  // Nur unser Apps Script (oder die Vorschau auf diesem Rechner) darf Ziel sein.
+  function erlaubt(api) {
+    return /^https:\/\/script\.google\.com\/(a\/[^\/]+\/)?macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(api) ||
+      /^http:\/\/127\.0\.0\.1:\d+\/$/.test(api);
+  }
+
+  var teile = {};
+  location.hash.replace(/^#/, "").split("&").forEach(function (t) {
+    var i = t.indexOf("=");
+    if (i > 0) teile[t.slice(0, i)] = decodeURIComponent(t.slice(i + 1));
+  });
+  // Code aus Adresszeile und Verlauf entfernen: er ist ohnehin nur einmal gueltig.
+  try { history.replaceState(null, "", location.pathname + location.search); } catch (e) {}
+
+  var code = teile.c || "", api = teile.a || "";
+  if (!/^[A-Za-z0-9]{24,120}$/.test(code) || !erlaubt(api)) {
+    zeige("Kein gültiger Link", "Bitte in der App bei der Rechnung oder dem Angebot noch einmal auf Teilen tippen.", true);
+    return;
+  }
+
+  fetch(api + "?teilen=" + encodeURIComponent(code), { method: "GET", credentials: "omit", cache: "no-store", redirect: "follow" })
+    .then(function (r) { if (!r.ok) throw new Error("Status " + r.status); return r.json(); })
+    .then(function (d) {
+      if (!d || d.fehler) throw new Error(d && d.fehler ? d.fehler : "Keine Antwort");
+      var bin = atob(d.base64), arr = new Uint8Array(bin.length);
+      for (var i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+      datei = new File([arr], d.name, { type: d.mime || "application/pdf" });
+      var url = URL.createObjectURL(datei);
+      $("oeffnen").href = url;
+      $("oeffnen").setAttribute("download", d.name);
+      $("oeffnen").hidden = false;
+      var kannTeilen = !!(navigator.share && navigator.canShare && navigator.canShare({ files: [datei] }));
+      zeige(d.name, kannTeilen ? "Tippe auf PDF teilen und wähle WhatsApp, Mail oder AirDrop." : "Dieses Gerät kann hier nicht direkt teilen. Öffne die PDF und teile sie von dort.");
+      $("teilen").hidden = !kannTeilen;
+    })
+    .catch(function (e) {
+      zeige("PDF nicht geholt", String(e && e.message || e) + " Bitte in der App noch einmal auf Teilen tippen.", true);
+    });
+
+  // Das Teilen-Fenster geht nur in einer Tipp-Geste auf, darum ein eigener Knopf.
+  $("teilen").addEventListener("click", function () {
+    if (!datei) return;
+    navigator.share({ files: [datei], title: datei.name }).then(function () {
+      zeige("Geteilt", "Du kannst dieses Fenster schließen und zur App zurückgehen.");
+    }).catch(function (e) {
+      if (e && e.name === "AbortError") return;
+      zeige(datei.name, "Teilen ging nicht (" + (e && e.message || e) + "). Öffne die PDF und teile sie von dort.", true);
+    });
+  });
+})();
+</script>
+</body>
+</html>
