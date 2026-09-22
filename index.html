@@ -8,7 +8,7 @@
 <title>LuF-Rechnung teilen</title>
 <!-- Teilen-Seite von LuF-Rechnung (22.09.2026). Liegt AUSSERHALB von Google (z. B. GitHub Pages),
      weil Googles Rahmen um die App das Teilen-Fenster von iOS nicht zulaesst. Die Seite holt die
-     PDF mit einem Einmal-Code (5 Minuten, ein Beleg) vom Apps Script und gibt sie als DATEI ans
+     PDF mit einem Code (10 Minuten, ein Beleg) vom Apps Script und gibt sie als DATEI ans
      Teilen-Fenster. Sie speichert nichts, laedt nichts von fremden Servern und kennt keine Daten,
      solange niemand mit einem gueltigen Code kommt. Code und Server-Adresse stehen hinter dem #. -->
 <style>
@@ -72,7 +72,12 @@
     var i = t.indexOf("=");
     if (i > 0) teile[t.slice(0, i)] = decodeURIComponent(t.slice(i + 1));
   });
-  // Code aus Adresszeile und Verlauf entfernen: er ist ohnehin nur einmal gueltig.
+  // Code aus Adresszeile und Verlauf entfernen, aber fuer ein Neuladen in diesem Tab merken:
+  // iOS laedt die Seite oft neu, wenn man aus WhatsApp zurueckkommt (Michele 22.09.).
+  try {
+    if (teile.c) sessionStorage.setItem("luf_teilen", JSON.stringify({ c: teile.c, a: teile.a || "" }));
+    else { var alt = JSON.parse(sessionStorage.getItem("luf_teilen") || "{}"); teile.c = alt.c; teile.a = alt.a; }
+  } catch (e) {}
   try { history.replaceState(null, "", location.pathname + location.search); } catch (e) {}
 
   var code = teile.c || "", api = teile.a || "";
