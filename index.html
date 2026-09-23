@@ -45,7 +45,9 @@
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="M8 7l4-4 4 4"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg>
       PDF teilen
     </button>
-    <a class="knopf" id="oeffnen" hidden target="_blank" rel="noopener">PDF öffnen oder sichern</a>
+    <a class="knopf" id="oeffnen" hidden rel="noopener">In Dateien sichern</a>
+    <p id="hinweis" hidden>Über „In Dateien sichern“ behält die Datei ihren Namen. Aus einem geöffneten
+      PDF heraus schickt das iPhone nur einen blob-Link und nennt die Datei „unbekannt“.</p>
   </div>
 </main>
 <script>
@@ -97,8 +99,9 @@
       $("oeffnen").href = url;
       $("oeffnen").setAttribute("download", d.name);
       $("oeffnen").hidden = false;
+      $("hinweis").hidden = false;
       var kannTeilen = !!(navigator.share && navigator.canShare && navigator.canShare({ files: [datei] }));
-      zeige(d.name, kannTeilen ? "Tippe auf PDF teilen und wähle WhatsApp, Mail oder AirDrop." : "Dieses Gerät kann hier nicht direkt teilen. Öffne die PDF und teile sie von dort.");
+      zeige(d.name, kannTeilen ? "Tippe auf PDF teilen und wähle WhatsApp, Mail oder AirDrop. Die Datei geht mit diesem Namen raus." : "Dieses Gerät kann hier nicht direkt teilen. Sichere die PDF in Dateien und häng sie von dort an.");
       $("teilen").hidden = !kannTeilen;
     })
     .catch(function (e) {
@@ -108,11 +111,13 @@
   // Das Teilen-Fenster geht nur in einer Tipp-Geste auf, darum ein eigener Knopf.
   $("teilen").addEventListener("click", function () {
     if (!datei) return;
-    navigator.share({ files: [datei], title: datei.name }).then(function () {
+    // Nur die Datei teilen (23.09.): mit title oder url haengt iOS zusaetzlich Text bzw. den
+    // blob-Link an die Nachricht, und WhatsApp nennt die Datei dann "unbekannt".
+    navigator.share({ files: [datei] }).then(function () {
       zeige("Geteilt", "Du kannst dieses Fenster schließen und zur App zurückgehen.");
     }).catch(function (e) {
       if (e && e.name === "AbortError") return;
-      zeige(datei.name, "Teilen ging nicht (" + (e && e.message || e) + "). Öffne die PDF und teile sie von dort.", true);
+      zeige(datei.name, "Teilen ging nicht (" + (e && e.message || e) + "). Sichere die PDF in Dateien und häng sie von dort an.", true);
     });
   });
 })();
